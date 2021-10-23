@@ -1,5 +1,15 @@
 from ursina import *
 
+KEY_ACTIONS = {
+    "pan_left": {"camera_position": (1, 0, 0)},
+    "pan_right": {"camera_position": (-1, 0, 0)},
+    "pan_down": {"camera_position": (0, -1, 0)},
+    "pan_up": {"camera_position": (0, 1, 0)},
+    "zoom_out": {"camera_position": (0, -1, -1)},
+    "zoom_in": {"camera_position": (0, 1, 1)},
+    "rotate_left": {"map_rotation": (0, 0, 1)},
+    "rotate_right": {"map_rotation": (0, 0, -1)},
+}
 
 game_map = None
 
@@ -10,12 +20,14 @@ class GameMap(Entity):
         self.size_y = kwargs.get("size_y", 16)
         super().__init__(
             model="quad",
-            position=(0, 19, -15),  # Hard coding this seems lame
+            position=(0, 18, -3),  # Hard coding this seems lame
             rotation=(0, 0, 45),
             scale=(10, 10),
-            texture="white_cube",
+            # texture="white_cube",
+            texture="stone_floor",
             texture_scale=(self.size_x, self.size_y),
-            color=color.dark_gray,
+            # color=color.dark_gray,
+            color=color.white,
         )
 
 
@@ -23,32 +35,32 @@ def update():
     pos_rate = 4
     rot_rate = pos_rate * 6
     keys = {
-        "a": {"camera_position": (time.dt * pos_rate, 0, 0)},
-        "d": {"camera_position": (time.dt * -pos_rate, 0, 0)},
-        "s": {"camera_position": (0, time.dt * -pos_rate, 0)},
-        "w": {"camera_position": (0, time.dt * pos_rate, 0)},
-        # Zoom out
-        "e": {"camera_position": (0, time.dt * -pos_rate, time.dt * -pos_rate)},
-        # Zoom in
-        "q": {"camera_position": (0, time.dt * pos_rate, time.dt * pos_rate)},
-        "z": {"map_rotation": (0, 0, time.dt * rot_rate)},
-        "c": {"map_rotation": (0, 0, time.dt * -rot_rate)},
+        "a": KEY_ACTIONS["pan_left"],
+        "d": KEY_ACTIONS["pan_right"],
+        "s": KEY_ACTIONS["pan_down"],
+        "w": KEY_ACTIONS["pan_up"],
+        "e": KEY_ACTIONS["zoom_out"],
+        "q": KEY_ACTIONS["zoom_in"],
+        "z": KEY_ACTIONS["rotate_left"],
+        "c": KEY_ACTIONS["rotate_right"],
     }
     for key in keys:
         if held_keys[key]:
             try:
-                camera.position += keys[key]["camera_position"]
+                pos = [x * time.dt * pos_rate for x in keys[key]["camera_position"]]
+                camera.position += pos
             except KeyError:
                 pass
             try:
-                game_map.rotation += keys[key]["map_rotation"]
+                rot = [x * time.dt * rot_rate for x in keys[key]["map_rotation"]]
+                game_map.rotation += rot
             except KeyError:
                 pass
 
 
 def main():
     global game_map
-    camera.rotation_x = -80
+    camera.rotation_x = -45
     app = Ursina()
     game_map = GameMap()
     app.run()
