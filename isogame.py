@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from ursina import *
 
 KEY_ACTIONS = {
@@ -14,58 +15,74 @@ KEY_ACTIONS = {
 game_map = None
 
 
+class MapObj:
+    def __init__(self, **kwargs):
+        self.x = kwargs.get("x")
+        self.y = kwargs.get("y")
+        self.type = kwargs.get("type")  # TODO: Rename this
+        self.parent = kwargs.get("parent")
+        self.entities = []
+        if self.type is not None:
+            self.update()
+
+    def update(self):
+        for index in range(len(self.entities)):
+            del self.entities[index]
+        if self.type == "wall":
+            self.entities.append(
+                Entity(
+                    parent=self.parent,
+                    model="cube",
+                    position=(self.x, self.y, -0.5),
+                    texture="brick",
+                )
+            )
+        elif self.type == "floor":
+            self.entities.append(
+                Entity(
+                    parent=self.parent,
+                    model="quad",
+                    texture="white_cube",
+                    color=color.rgba(255, 255, 255, 128),
+                    position=(self.x, self.y, -0.1),
+                )
+            )
+            self.entities.append(
+                Entity(
+                    parent=self.parent,
+                    model="quad",
+                    texture="grass",
+                    position=(self.x, self.y, 0),
+                )
+            )
+
+
 class GameMap(Entity):
     def __init__(self, **kwargs):
         self.size_x = kwargs.get("size_x", 16)
         self.size_y = kwargs.get("size_y", 16)
-        # start_pos = (-10, 28, 6) # Magic numbers are bad
         start_pos = (0, 0, 0)
         start_rot = (0, 0, 45)
         self.control = Entity(
             position=start_pos,
             rotation=start_rot,
         )
-        self.floor = [[] * self.size_y] * self.size_x
-        self.grid = [[] * self.size_y] * self.size_x
-        self.walls = []
+        self.map_objs = [
+            [
+                MapObj(
+                    x=x - self.size_x / 2, y=y - self.size_y / 2, parent=self.control
+                )
+                for y in range(self.size_y)
+            ]
+            for x in range(self.size_x)
+        ]
         for x in range(0, self.size_x):
             for y in range(0, self.size_y):
-                self.grid[x].append(
-                    Entity(
-                        parent=self.control,
-                        model="quad",
-                        texture="white_cube",
-                        color=color.rgba(255, 255, 255, 128),
-                        position=(x, y, -0.01),
-                    )
-                )
-                self.floor[x].append(
-                    Entity(
-                        parent=self.control,
-                        model="quad",
-                        texture="grass",
-                        position=(x, y, 0),
-                    )
-                )
                 if x == 0 or y == 0 or x == self.size_x - 1 or y == self.size_y - 1:
-                    self.walls.append(
-                        Entity(
-                            parent=self.control,
-                            model="cube",
-                            position=(x, y, 0),
-                            texture="brick",
-                            # color=color.rgba(255, 255, 255, 128)
-                        )
-                    )
-                    self.walls.append(
-                        Entity(
-                            parent=self.control,
-                            model="cube",
-                            position=(x, y, -1),
-                            texture="brick",
-                            # color=color.rgba(255, 255, 255, 128)
-                        )
-                    )
+                    self.map_objs[x][y].type = "wall"
+                else:
+                    self.map_objs[x][y].type = "floor"
+                self.map_objs[x][y].update()
 
 
 def update():
@@ -86,7 +103,6 @@ def update():
             try:
                 pos = [x * time.dt * pos_rate for x in keys[key]["camera_position"]]
                 camera.position += pos
-                print(camera.position)
             except KeyError:
                 pass
             try:
@@ -100,7 +116,7 @@ def main():
     global game_map
     app = Ursina()
     camera.rotation_x = -45
-    camera.position += (10, -28, -6)
+    camera.position += (0, -28, -6)
     game_map = GameMap()
     app.run()
 
