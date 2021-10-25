@@ -20,6 +20,7 @@ game_map = None
 
 class MapBlock:
     def __init__(self, **kwargs):
+        self.map = kwargs.get("map")
         self.x = kwargs.get("x")
         self.y = kwargs.get("y")
         self.type = kwargs.get("type")  # TODO: Rename this
@@ -29,6 +30,9 @@ class MapBlock:
         self.occupant = None
         if self.type is not None:
             self.update_terrain()
+
+    def _click(self):
+        self.map._click(self)
 
     def _debug_info(self):
         print(f"{self.x},{self.y}")
@@ -86,7 +90,7 @@ class MapBlock:
                 texture="white_cube",
                 color=self.grid_color,
                 collider="box",
-                on_click=self._debug_info,
+                on_click=self._click,
                 position=(self.x, self.y, -0.01),
             )
             self.entities["Terrain"] = Entity(
@@ -111,7 +115,10 @@ class GameMap(Entity):
         self.map_blocks = [
             [
                 MapBlock(
-                    x=x - self.size_x / 2, y=y - self.size_y / 2, parent=self.control
+                    map=self,
+                    x=x - self.size_x / 2,
+                    y=y - self.size_y / 2,
+                    parent=self.control,
                 )
                 for y in range(self.size_y)
             ]
@@ -119,6 +126,14 @@ class GameMap(Entity):
         ]
         self.generate_map()
         self.update_map()
+
+    def _click(self, block):
+        MODE = "move"
+        if MODE == "move":
+            if block in self.player_adjacent_blocks():
+                print("CAN MOVE!")
+            else:
+                print("CAN'T MOVE!")
 
     def generate_map(self):
         for x in range(0, self.size_x):
