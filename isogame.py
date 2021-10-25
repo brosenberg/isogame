@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+import random
+
 from ursina import *
 
 KEY_ACTIONS = {
@@ -21,39 +24,52 @@ class MapObj:
         self.y = kwargs.get("y")
         self.type = kwargs.get("type")  # TODO: Rename this
         self.parent = kwargs.get("parent")
-        self.entities = []
+        self.entities = {"Terrain": None, "Grid": None, "Object": None}
         if self.type is not None:
-            self.update()
+            self.update_terrain()
 
-    def update(self):
-        for index in range(len(self.entities)):
-            del self.entities[index]
+    def add_obj(self, obj="enemy"):
+        obj_color = color.red
+        if obj == "player":
+            obj_color = color.blue
+        self.entities["Object"] = Entity(
+            parent=self.parent,
+            model="scale_gizmo",
+            texture="white_cube",
+            color=obj_color,
+            position=(self.x, self.y, -0.5),
+            rotation=(0, 180, 0),
+        )
+
+    def clear(self):
+        for entity in self.entities:
+            if self.entities[entity]:
+                del self.entities[entity]
+
+    def update_terrain(self):
+        del self.entities["Grid"]
+        del self.entities["Terrain"]
         if self.type == "wall":
-            self.entities.append(
-                Entity(
-                    parent=self.parent,
-                    model="cube",
-                    position=(self.x, self.y, -0.5),
-                    texture="brick",
-                )
+            self.entities["Grid"] = None
+            self.entities["Terrain"] = Entity(
+                parent=self.parent,
+                model="cube",
+                position=(self.x, self.y, -0.5),
+                texture="brick",
             )
         elif self.type == "floor":
-            self.entities.append(
-                Entity(
-                    parent=self.parent,
-                    model="quad",
-                    texture="white_cube",
-                    color=color.rgba(255, 255, 255, 128),
-                    position=(self.x, self.y, -0.1),
-                )
+            self.entities["Grid"] = Entity(
+                parent=self.parent,
+                model="quad",
+                texture="white_cube",
+                color=color.rgba(255, 255, 255, 128),
+                position=(self.x, self.y, -0.01),
             )
-            self.entities.append(
-                Entity(
-                    parent=self.parent,
-                    model="quad",
-                    texture="grass",
-                    position=(self.x, self.y, 0),
-                )
+            self.entities["Terrain"] = Entity(
+                parent=self.parent,
+                model="quad",
+                texture="grass",
+                position=(self.x, self.y, 0),
             )
 
 
@@ -82,7 +98,11 @@ class GameMap(Entity):
                     self.map_objs[x][y].type = "wall"
                 else:
                     self.map_objs[x][y].type = "floor"
-                self.map_objs[x][y].update()
+                    if x == int(self.size_x / 2) and y == int(self.size_y / 2):
+                        self.map_objs[x][y].add_obj(obj="player")
+                    elif random.randint(0, 100) > 70:
+                        self.map_objs[x][y].add_obj(obj="enemy")
+                self.map_objs[x][y].update_terrain()
 
 
 def update():
