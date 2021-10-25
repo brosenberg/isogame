@@ -18,7 +18,7 @@ KEY_ACTIONS = {
 game_map = None
 
 
-class MapObj:
+class MapBlock:
     def __init__(self, **kwargs):
         self.x = kwargs.get("x")
         self.y = kwargs.get("y")
@@ -28,6 +28,9 @@ class MapObj:
         self.entities = {"Terrain": None, "Grid": None, "Object": None}
         if self.type is not None:
             self.update_terrain()
+
+    def _debug_info(self):
+        print(f"{self.x},{self.y}")
 
     def add_obj(self, obj="enemy"):
         obj_color = color.red
@@ -72,6 +75,8 @@ class MapObj:
                 model="quad",
                 texture="white_cube",
                 color=self.grid_color,
+                collider="box",
+                on_click=self._debug_info,
                 position=(self.x, self.y, -0.01),
             )
             self.entities["Terrain"] = Entity(
@@ -88,13 +93,14 @@ class GameMap(Entity):
         self.size_y = kwargs.get("size_y", 16)
         start_pos = (0, 0, 0)
         start_rot = (0, 0, 45)
+        self.player_position = (int(self.size_x / 2), int(self.size_y / 2))
         self.control = Entity(
             position=start_pos,
             rotation=start_rot,
         )
-        self.map_objs = [
+        self.map_blocks = [
             [
-                MapObj(
+                MapBlock(
                     x=x - self.size_x / 2, y=y - self.size_y / 2, parent=self.control
                 )
                 for y in range(self.size_y)
@@ -104,16 +110,26 @@ class GameMap(Entity):
         for x in range(0, self.size_x):
             for y in range(0, self.size_y):
                 if x == 0 or y == 0 or x == self.size_x - 1 or y == self.size_y - 1:
-                    self.map_objs[x][y].type = "wall"
+                    self.map_blocks[x][y].type = "wall"
                 else:
-                    self.map_objs[x][y].type = "floor"
-                    if x == int(self.size_x / 2) and y == int(self.size_y / 2):
-                        self.map_objs[x][y].add_obj(obj="player")
-                        self.map_objs[x][y].grid_color = color.rgba(0, 255, 0, 128)
+                    self.map_blocks[x][y].type = "floor"
+                    if (x, y) == self.player_position:
+                        self.map_blocks[x][y].add_obj(obj="player")
+                        # self.map_blocks[x][y].grid_color = color.rgba(0, 255, 0, 128)
                     elif random.randint(0, 100) > 70:
-                        self.map_objs[x][y].add_obj(obj="enemy")
-                        self.map_objs[x][y].grid_color = color.rgba(255, 0, 0, 128)
-                self.map_objs[x][y].update_terrain()
+                        self.map_blocks[x][y].add_obj(obj="enemy")
+                        self.map_blocks[x][y].grid_color = color.rgba(255, 0, 0, 128)
+                self.map_blocks[x][y].update_terrain()
+
+        self.player_map_block().entities["Grid"].blink(
+            value=color.rgba(0, 255, 0, 100),
+            duration=1.2,
+            loop=True,
+            curve=curve.in_sine_boomerang,
+        )
+
+    def player_map_block(self):
+        return self.map_blocks[self.player_position[0]][self.player_position[1]]
 
 
 def update():
