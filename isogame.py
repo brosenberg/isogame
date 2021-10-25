@@ -24,6 +24,7 @@ class MapObj:
         self.y = kwargs.get("y")
         self.type = kwargs.get("type")  # TODO: Rename this
         self.parent = kwargs.get("parent")
+        self.grid_color = color.rgba(255, 255, 255, 128)
         self.entities = {"Terrain": None, "Grid": None, "Object": None}
         if self.type is not None:
             self.update_terrain()
@@ -47,6 +48,14 @@ class MapObj:
                 del self.entities[entity]
 
     def update_terrain(self):
+        try:
+            self.entities["Grid"].disable()
+        except AttributeError:
+            pass
+        try:
+            self.entities["Terrain"].disable()
+        except AttributeError:
+            pass
         del self.entities["Grid"]
         del self.entities["Terrain"]
         if self.type == "wall":
@@ -62,7 +71,7 @@ class MapObj:
                 parent=self.parent,
                 model="quad",
                 texture="white_cube",
-                color=color.rgba(255, 255, 255, 128),
+                color=self.grid_color,
                 position=(self.x, self.y, -0.01),
             )
             self.entities["Terrain"] = Entity(
@@ -100,8 +109,10 @@ class GameMap(Entity):
                     self.map_objs[x][y].type = "floor"
                     if x == int(self.size_x / 2) and y == int(self.size_y / 2):
                         self.map_objs[x][y].add_obj(obj="player")
+                        self.map_objs[x][y].grid_color = color.rgba(0, 255, 0, 128)
                     elif random.randint(0, 100) > 70:
                         self.map_objs[x][y].add_obj(obj="enemy")
+                        self.map_objs[x][y].grid_color = color.rgba(255, 0, 0, 128)
                 self.map_objs[x][y].update_terrain()
 
 
