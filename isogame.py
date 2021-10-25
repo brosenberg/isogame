@@ -26,6 +26,7 @@ class MapBlock:
         self.parent = kwargs.get("parent")
         self.grid_color = color.rgba(255, 255, 255, 128)
         self.entities = {"Terrain": None, "Grid": None, "Object": None}
+        self.occupant = None
         if self.type is not None:
             self.update_terrain()
 
@@ -33,6 +34,7 @@ class MapBlock:
         print(f"{self.x},{self.y}")
 
     def add_obj(self, obj="enemy"):
+        self.occupant = obj
         obj_color = color.red
         if obj == "player":
             obj_color = color.blue
@@ -43,6 +45,14 @@ class MapBlock:
             color=obj_color,
             position=(self.x, self.y, -0.5),
             rotation=(0, 180, 0),
+        )
+
+    def blink_grid(self, **kwargs):
+        self.entities["Grid"].blink(
+            value=kwargs.get("value", color.rgba(255, 255, 255, 192)),
+            duration=1.2,
+            loop=kwargs.get("loop", True),
+            curve=curve.linear_boomerang,
         )
 
     def clear(self):
@@ -107,6 +117,10 @@ class GameMap(Entity):
             ]
             for x in range(self.size_x)
         ]
+        self.generate_map()
+        self.update_map()
+
+    def generate_map(self):
         for x in range(0, self.size_x):
             for y in range(0, self.size_y):
                 if x == 0 or y == 0 or x == self.size_x - 1 or y == self.size_y - 1:
@@ -115,21 +129,30 @@ class GameMap(Entity):
                     self.map_blocks[x][y].type = "floor"
                     if (x, y) == self.player_position:
                         self.map_blocks[x][y].add_obj(obj="player")
-                        # self.map_blocks[x][y].grid_color = color.rgba(0, 255, 0, 128)
                     elif random.randint(0, 100) > 70:
                         self.map_blocks[x][y].add_obj(obj="enemy")
                         self.map_blocks[x][y].grid_color = color.rgba(255, 0, 0, 128)
                 self.map_blocks[x][y].update_terrain()
 
-        self.player_map_block().entities["Grid"].blink(
-            value=color.rgba(0, 255, 0, 100),
-            duration=1.2,
-            loop=True,
-            curve=curve.in_sine_boomerang,
-        )
+    def update_map(self):
+        self.player_map_block().blink_grid(value=color.rgba(0, 255, 0, 96))
+        for block in self.player_adjacent_blocks():
+            block.blink_grid()
 
     def player_map_block(self):
         return self.map_blocks[self.player_position[0]][self.player_position[1]]
+
+    def player_adjacent_blocks(self, occupied=False):
+        blocks = []
+        for x in range(self.player_position[0] - 1, self.player_position[0] + 2):
+            for y in range(self.player_position[1] - 1, self.player_position[1] + 2):
+                if (
+                    occupied is False
+                    and self.map_blocks[x][y].entities["Object"] is not None
+                ):
+                    continue
+                blocks.append(self.map_blocks[x][y])
+        return blocks
 
 
 def update():
@@ -141,7 +164,9 @@ def update():
         "s": KEY_ACTIONS["pan_down"],
         "w": KEY_ACTIONS["pan_up"],
         "e": KEY_ACTIONS["zoom_out"],
+        Keys.scroll_down: KEY_ACTIONS["zoom_out"],
         "q": KEY_ACTIONS["zoom_in"],
+        Keys.scroll_up: KEY_ACTIONS["zoom_in"],
         "z": KEY_ACTIONS["rotate_left"],
         "c": KEY_ACTIONS["rotate_right"],
     }
