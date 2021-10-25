@@ -18,17 +18,54 @@ class GameMap(Entity):
     def __init__(self, **kwargs):
         self.size_x = kwargs.get("size_x", 16)
         self.size_y = kwargs.get("size_y", 16)
-        super().__init__(
-            model="quad",
-            position=(0, 18, -3),  # Hard coding this seems lame
-            rotation=(0, 0, 45),
-            scale=(10, 10),
-            # texture="white_cube",
-            texture="stone_floor",
-            texture_scale=(self.size_x, self.size_y),
-            # color=color.dark_gray,
-            color=color.white,
+        # start_pos = (-10, 28, 6) # Magic numbers are bad
+        start_pos = (0, 0, 0)
+        start_rot = (0, 0, 45)
+        self.control = Entity(
+            position=start_pos,
+            rotation=start_rot,
         )
+        self.floor = [[] * self.size_y] * self.size_x
+        self.grid = [[] * self.size_y] * self.size_x
+        self.walls = []
+        for x in range(0, self.size_x):
+            for y in range(0, self.size_y):
+                self.grid[x].append(
+                    Entity(
+                        parent=self.control,
+                        model="quad",
+                        texture="white_cube",
+                        color=color.rgba(255, 255, 255, 128),
+                        position=(x, y, -0.01),
+                    )
+                )
+                self.floor[x].append(
+                    Entity(
+                        parent=self.control,
+                        model="quad",
+                        texture="grass",
+                        position=(x, y, 0),
+                    )
+                )
+                if x == 0 or y == 0 or x == self.size_x - 1 or y == self.size_y - 1:
+                    self.walls.append(
+                        Entity(
+                            parent=self.control,
+                            model="cube",
+                            position=(x, y, 0),
+                            texture="brick",
+                            # color=color.rgba(255, 255, 255, 128)
+                        )
+                    )
+                    self.walls.append(
+                        Entity(
+                            parent=self.control,
+                            model="cube",
+                            position=(x, y, -1),
+                            texture="brick",
+                            # color=color.rgba(255, 255, 255, 128)
+                        )
+                    )
 
 
 def update():
@@ -49,19 +86,21 @@ def update():
             try:
                 pos = [x * time.dt * pos_rate for x in keys[key]["camera_position"]]
                 camera.position += pos
+                print(camera.position)
             except KeyError:
                 pass
             try:
                 rot = [x * time.dt * rot_rate for x in keys[key]["map_rotation"]]
-                game_map.rotation += rot
+                game_map.control.rotation += rot
             except KeyError:
                 pass
 
 
 def main():
     global game_map
-    camera.rotation_x = -45
     app = Ursina()
+    camera.rotation_x = -45
+    camera.position += (10, -28, -6)
     game_map = GameMap()
     app.run()
 
