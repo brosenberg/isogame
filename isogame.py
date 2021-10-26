@@ -2,6 +2,7 @@
 
 import random
 
+from creatures import Creature
 from ursina import *
 
 KEY_ACTIONS = {
@@ -17,14 +18,14 @@ KEY_ACTIONS = {
 
 DEFAULT_GRID_COLOR = color.rgba(255, 255, 255, 128)
 ENEMY_GRID_COLOR = color.rgba(255, 0, 0, 128)
-OTHER_GRID_COLOR = color.rgba(0, 255, 255, 128)
-PLAYER_GRID_COLOR = color.rgba(0, 255, 0, 128)
+FRIEND_GRID_COLOR = color.rgba(0, 255, 0, 128)
+NEUTRAL_GRID_COLOR = color.rgba(255, 255, 0, 128)
 
 DEFAULT_CAMERA_POS = (0, -28, -26)
 DEFAULT_CAMERA_ROT = (-45, 0, 0)
 
 game_map = None
-
+player = Creature(factions=["Player"])
 
 class MapBlock:
     def __init__(self, **kwargs):
@@ -82,15 +83,18 @@ class MapBlock:
 
         if self.occupant:
             obj_color = color.white
-            if self.occupant == "enemy":
+            if self.occupant is player:
+                obj_color = color.blue
+                self.grid_color = FRIEND_GRID_COLOR
+            elif player.is_enemy(self.occupant):
                 obj_color = color.red
                 self.grid_color = ENEMY_GRID_COLOR
-            elif self.occupant == "player":
-                obj_color = color.blue
-                self.grid_color = PLAYER_GRID_COLOR
+            elif player.is_friend(self.occupant):
+                obj_color = color.green
+                self.grid_color = FRIEND_GRID_COLOR
             else:
                 obj_color = color.white
-                self.grid_color = OTHER_GRID_COLOR
+                self.grid_color = NEUTRAL_GRID_COLOR
             self.entities["Object"].parent = self.parent
             self.entities["Object"].model = "scale_gizmo"
             self.entities["Object"].texture = "white_cube"
@@ -141,9 +145,13 @@ class GameMap(Entity):
             else:
                 print("Can't move: Too far.")
 
-    def move_player(self, block):
-        self.player_block.occupant = None
-        block.occupant = "player"
+    def move_player(self, block, ignore=False):
+        try:
+            self.player_block.occupant = None
+        except AttributeError:
+            if not ignore:
+                raise
+        block.occupant = player
         self.player_block = block
 
     def generate_map(self):
@@ -155,11 +163,10 @@ class GameMap(Entity):
                 else:
                     self.map_blocks[x][y].type = "floor"
                     if (x, y) == player_position:
-                        self.map_blocks[x][y].occupant = "player"
-                        self.player_block = self.map_blocks[x][y]
+                        self.move_player(self.map_blocks[x][y], ignore=True)
                     elif random.randint(0, 100) > 70:
-                        self.map_blocks[x][y].occupant = "enemy"
-                self.map_blocks[x][y].update_terrain()
+                        creature = Creature(factions=[random.choice(['Enemy', 'Neutral'])])
+                        self.map_blocks[x][y].occupant = creature
 
     def update_map(self):
         for x in range(0, self.size_x):
@@ -214,6 +221,7 @@ def main():
     camera.position = DEFAULT_CAMERA_POS
     camera.rotation = DEFAULT_CAMERA_ROT
     game_map = GameMap()
+    game_map.update_map()
     app.run()
 
 
