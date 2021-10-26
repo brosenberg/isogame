@@ -18,31 +18,20 @@ KEY_ACTIONS = {
 game_map = None
 
 
-def rmrf(entity):
-    try:
-        entity.disable()
-    except AttributeError:
-        pass
-    try:
-        entity.pause()
-    except AttributeError:
-        pass
-    try:
-        destroy(entity)
-    except AttributeError:
-        pass
-    del entity
-
-
 class MapBlock:
     def __init__(self, **kwargs):
         self.map = kwargs.get("map")
+        self.indices = kwargs.get("indices")
         self.x = kwargs.get("x")
         self.y = kwargs.get("y")
         self.type = kwargs.get("type")  # TODO: Rename this
         self.parent = kwargs.get("parent")
         self.grid_color = color.rgba(255, 255, 255, 128)
-        self.entities = {"Terrain": None, "Grid": None, "Object": None}
+        self.entities = {
+            "Terrain": Entity(parent=self.parent),
+            "Grid": Entity(parent=self.parent),
+            "Object": Entity(parent=self.parent),
+        }
         self.action = None
         self.occupant = None
         if self.type is not None:
@@ -69,6 +58,15 @@ class MapBlock:
             value=kwargs.get("value", self.grid_color + color.rgba(0, 0, 0, 128)),
             duration=1.2,
             loop=kwargs.get("loop", True),
+            interrupt="finish",
+            curve=curve.linear_boomerang,
+        )
+
+    def blink_grid(self, **kwargs):
+        self.action = self.entities["Grid"].blink(
+            value=kwargs.get("value", self.grid_color + color.rgba(0, 0, 0, 128)),
+            duration=1.2,
+            loop=kwargs.get("loop", True),
             curve=curve.linear_boomerang,
         )
 
@@ -77,48 +75,54 @@ class MapBlock:
         if entity:
             entities = [entity]
         for entity in entities:
-            rmrf(entity)
+            try:
+                self.entities[entity].disable()
+            except AttributeError:
+                pass
+            try:
+                self.entities[entity].pause()
+            except AttributeError:
+                pass
+            try:
+                destroy(self.entities[entity])
+            except AttributeError:
+                pass
+            del self.entities[entity]
             if entity == "Object":
                 self.occupant = None
-            if self.entities[entity]:
-                rmrf(entity)
 
     def update_terrain(self):
-        rmrf(self.entities["Grid"])
-        rmrf(self.entities["Terrain"])
         if self.type == "wall":
-            self.entities["Grid"] = Entity()
-            self.entities["Terrain"] = Entity(
-                parent=self.parent,
-                model="cube",
-                position=(self.x, self.y, -0.5),
-                texture="brick",
-            )
+            self.entities["Grid"].model = None
+            self.entities["Terrain"].model = "cube"
+            self.entities["Terrain"].texture = "brick"
+            self.entities["Terrain"].position = (self.x, self.y, -0.5)
+
         elif self.type == "floor":
-            self.entities["Grid"] = Entity(
-                parent=self.parent,
-                model="quad",
-                texture="white_cube",
-                color=self.grid_color,
-                collider="box",
-                on_click=self._click,
-                position=(self.x, self.y, -0.01),
-            )
-            self.entities["Terrain"] = Entity(
-                parent=self.parent,
-                model="quad",
-                texture="grass",
-                position=(self.x, self.y, 0),
-            )
+            self.entities["Grid"].model = "quad"
+            self.entities["Grid"].texture = "white_cube"
+            self.entities["Grid"].color = self.grid_color
+            self.entities["Grid"].collider = "box"
+            self.entities["Grid"].on_click = self._click
+            self.entities["Grid"].position = (self.x, self.y, -0.01)
+            if self.action:
+                self.action.finish()
+                self.action = None
+
+            self.entities["Terrain"].model = "quad"
+            self.entities["Terrain"].texture = "grass"
+            self.entities["Terrain"].color = color.white
+            self.entities["Terrain"].position = (self.x, self.y, 0)
+
         if self.occupant:
-            self.entities["Object"] = Entity(
-                parent=self.parent,
-                model="scale_gizmo",
-                texture="white_cube",
-                color=self.obj_color,
-                position=(self.x, self.y, -0.5),
-                rotation=(0, 180, 0),
-            )
+            self.entities["Object"].parent = self.parent
+            self.entities["Object"].model = "scale_gizmo"
+            self.entities["Object"].texture = "white_cube"
+            self.entities["Object"].color = self.obj_color
+            self.entities["Object"].position = (self.x, self.y, -0.5)
+            self.entities["Object"].rotation = (0, 180, 0)
+        else:
+            self.entities["Object"].model = None
 
 
 class GameMap(Entity):
@@ -127,7 +131,7 @@ class GameMap(Entity):
         self.size_y = kwargs.get("size_y", 16)
         start_pos = (0, 0, 0)
         start_rot = (0, 0, 45)
-        self.player_position = (int(self.size_x / 2), int(self.size_y / 2))
+        self.player_block = None
         self.control = Entity(
             position=start_pos,
             rotation=start_rot,
@@ -136,6 +140,7 @@ class GameMap(Entity):
             [
                 MapBlock(
                     map=self,
+                    indices=(x, y),
                     x=x - self.size_x / 2,
                     y=y - self.size_y / 2,
                     parent=self.control,
@@ -154,25 +159,28 @@ class GameMap(Entity):
                 print("CAN MOVE!")
                 self.move_player(block)
                 self.update_map()
+            elif block in self.player_adjacent_blocks():
+                print("Can't move: Occupied.")
             else:
-                print("CAN'T MOVE!")
+                print("Can't move: Too far.")
 
     def move_player(self, block):
-        self.player_map_block().clear(entity="Object")
-        pmb = self.player_map_block()
-        print(f"{pmb.x},{pmb.y} -> {block.x},{block.y}")
+        self.player_block.occupant = None
+        print(f"{self.player_block.x},{self.player_block.y} -> {block.x},{block.y}")
         block.add_obj(obj="player")
-        self.player_position = (int(block.x), int(block.y))
+        self.player_block = block
 
     def generate_map(self):
+        player_position = (int(self.size_x / 2), int(self.size_y / 2))
         for x in range(0, self.size_x):
             for y in range(0, self.size_y):
                 if x == 0 or y == 0 or x == self.size_x - 1 or y == self.size_y - 1:
                     self.map_blocks[x][y].type = "wall"
                 else:
                     self.map_blocks[x][y].type = "floor"
-                    if (x, y) == self.player_position:
+                    if (x, y) == player_position:
                         self.map_blocks[x][y].add_obj(obj="player")
+                        self.player_block = self.map_blocks[x][y]
                     elif random.randint(0, 100) > 70:
                         self.map_blocks[x][y].add_obj(obj="enemy")
                 self.map_blocks[x][y].update_terrain()
@@ -184,17 +192,12 @@ class GameMap(Entity):
         for block in self.player_adjacent_blocks():
             block.blink_grid()
 
-    def player_map_block(self):
-        return self.map_blocks[self.player_position[0]][self.player_position[1]]
-
     def player_adjacent_blocks(self, occupied=True):
         blocks = []
-        for x in range(self.player_position[0] - 1, self.player_position[0] + 2):
-            for y in range(self.player_position[1] - 1, self.player_position[1] + 2):
-                if (
-                    occupied is False
-                    and self.map_blocks[x][y].entities["Object"] is not None
-                ):
+        px, py = self.player_block.indices
+        for x in range(px - 1, px + 2):
+            for y in range(py - 1, py + 2):
+                if occupied is False and self.map_blocks[x][y].occupant is not None:
                     continue
                 blocks.append(self.map_blocks[x][y])
         return blocks
