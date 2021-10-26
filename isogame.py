@@ -15,6 +15,14 @@ KEY_ACTIONS = {
     "rotate_right": {"map_rotation": (0, 0, -1)},
 }
 
+DEFAULT_GRID_COLOR = color.rgba(255, 255, 255, 128)
+ENEMY_GRID_COLOR = color.rgba(255, 0, 0, 128)
+OTHER_GRID_COLOR = color.rgba(0, 255, 255, 128)
+PLAYER_GRID_COLOR = color.rgba(0, 255, 0, 128)
+
+DEFAULT_CAMERA_POS = (0, -28, -26)
+DEFAULT_CAMERA_ROT = (-45, 0, 0)
+
 game_map = None
 
 
@@ -26,13 +34,13 @@ class MapBlock:
         self.y = kwargs.get("y")
         self.type = kwargs.get("type")  # TODO: Rename this
         self.parent = kwargs.get("parent")
-        self.grid_color = color.rgba(255, 255, 255, 128)
+        self.grid_color = DEFAULT_GRID_COLOR
         self.entities = {
             "Terrain": Entity(parent=self.parent),
             "Grid": Entity(parent=self.parent),
             "Object": Entity(parent=self.parent),
         }
-        self.action = None
+        self.grid_blink_action = None
         self.occupant = None
         if self.type is not None:
             self.update_terrain()
@@ -40,56 +48,14 @@ class MapBlock:
     def _click(self):
         self.map._click(self)
 
-    def _debug_info(self):
-        print(f"{self.x},{self.y}")
-
-    def add_obj(self, obj="enemy"):
-        self.occupant = obj
-        self.obj_color = color.white
-        if obj == "player":
-            self.obj_color = color.blue
-            self.grid_color = color.rgba(0, 255, 0, 128)
-        elif obj == "enemy":
-            self.obj_color = color.red
-            self.grid_color = color.rgba(255, 0, 0, 128)
-
     def blink_grid(self, **kwargs):
-        self.action = self.entities["Grid"].blink(
+        self.grid_blink_action = self.entities["Grid"].blink(
             value=kwargs.get("value", self.grid_color + color.rgba(0, 0, 0, 128)),
             duration=1.2,
             loop=kwargs.get("loop", True),
             interrupt="finish",
             curve=curve.linear_boomerang,
         )
-
-    def blink_grid(self, **kwargs):
-        self.action = self.entities["Grid"].blink(
-            value=kwargs.get("value", self.grid_color + color.rgba(0, 0, 0, 128)),
-            duration=1.2,
-            loop=kwargs.get("loop", True),
-            curve=curve.linear_boomerang,
-        )
-
-    def clear(self, entity=None):
-        entities = self.entities
-        if entity:
-            entities = [entity]
-        for entity in entities:
-            try:
-                self.entities[entity].disable()
-            except AttributeError:
-                pass
-            try:
-                self.entities[entity].pause()
-            except AttributeError:
-                pass
-            try:
-                destroy(self.entities[entity])
-            except AttributeError:
-                pass
-            del self.entities[entity]
-            if entity == "Object":
-                self.occupant = None
 
     def update_terrain(self):
         if self.type == "wall":
@@ -105,9 +71,9 @@ class MapBlock:
             self.entities["Grid"].collider = "box"
             self.entities["Grid"].on_click = self._click
             self.entities["Grid"].position = (self.x, self.y, -0.01)
-            if self.action:
-                self.action.finish()
-                self.action = None
+            if self.grid_blink_action:
+                self.grid_blink_action.kill()
+                self.grid_blink_action = None
 
             self.entities["Terrain"].model = "quad"
             self.entities["Terrain"].texture = "grass"
@@ -115,14 +81,25 @@ class MapBlock:
             self.entities["Terrain"].position = (self.x, self.y, 0)
 
         if self.occupant:
+            obj_color = color.white
+            if self.occupant == "enemy":
+                obj_color = color.red
+                self.grid_color = ENEMY_GRID_COLOR
+            elif self.occupant == "player":
+                obj_color = color.blue
+                self.grid_color = PLAYER_GRID_COLOR
+            else:
+                obj_color = color.white
+                self.grid_color = OTHER_GRID_COLOR
             self.entities["Object"].parent = self.parent
             self.entities["Object"].model = "scale_gizmo"
             self.entities["Object"].texture = "white_cube"
-            self.entities["Object"].color = self.obj_color
+            self.entities["Object"].color = obj_color
             self.entities["Object"].position = (self.x, self.y, -0.5)
             self.entities["Object"].rotation = (0, 180, 0)
         else:
             self.entities["Object"].model = None
+            self.grid_color = DEFAULT_GRID_COLOR
 
 
 class GameMap(Entity):
@@ -132,6 +109,7 @@ class GameMap(Entity):
         start_pos = (0, 0, 0)
         start_rot = (0, 0, 45)
         self.player_block = None
+        # Parent of all other Entities. Also used to rotate the map.
         self.control = Entity(
             position=start_pos,
             rotation=start_rot,
@@ -156,7 +134,6 @@ class GameMap(Entity):
         MODE = "move"
         if MODE == "move":
             if block in self.player_adjacent_blocks(occupied=False):
-                print("CAN MOVE!")
                 self.move_player(block)
                 self.update_map()
             elif block in self.player_adjacent_blocks():
@@ -166,8 +143,7 @@ class GameMap(Entity):
 
     def move_player(self, block):
         self.player_block.occupant = None
-        print(f"{self.player_block.x},{self.player_block.y} -> {block.x},{block.y}")
-        block.add_obj(obj="player")
+        block.occupant = "player"
         self.player_block = block
 
     def generate_map(self):
@@ -179,10 +155,10 @@ class GameMap(Entity):
                 else:
                     self.map_blocks[x][y].type = "floor"
                     if (x, y) == player_position:
-                        self.map_blocks[x][y].add_obj(obj="player")
+                        self.map_blocks[x][y].occupant = "player"
                         self.player_block = self.map_blocks[x][y]
                     elif random.randint(0, 100) > 70:
-                        self.map_blocks[x][y].add_obj(obj="enemy")
+                        self.map_blocks[x][y].occupant = "enemy"
                 self.map_blocks[x][y].update_terrain()
 
     def update_map(self):
@@ -235,8 +211,8 @@ def update():
 def main():
     global game_map
     app = Ursina()
-    camera.rotation_x = -45
-    camera.position += (0, -28, -6)
+    camera.position = DEFAULT_CAMERA_POS
+    camera.rotation = DEFAULT_CAMERA_ROT
     game_map = GameMap()
     app.run()
 
