@@ -19,13 +19,14 @@ KEY_ACTIONS = {
 DEFAULT_GRID_COLOR = color.rgba(255, 255, 255, 128)
 ENEMY_GRID_COLOR = color.rgba(255, 0, 0, 128)
 FRIEND_GRID_COLOR = color.rgba(0, 255, 0, 128)
-NEUTRAL_GRID_COLOR = color.rgba(255, 255, 0, 128)
+NEUTRAL_GRID_COLOR = color.rgba(255, 255, 64, 128)
 
 DEFAULT_CAMERA_POS = (0, -28, -26)
 DEFAULT_CAMERA_ROT = (-45, 0, 0)
 
 game_map = None
 player = Creature(factions=["Player"])
+
 
 class MapBlock:
     def __init__(self, **kwargs):
@@ -57,6 +58,13 @@ class MapBlock:
             interrupt="finish",
             curve=curve.linear_boomerang,
         )
+
+    def remove_occupant(self):
+        occupant = self.occupant
+        self.entities["Object"].model = None
+        self.grid_color = DEFAULT_GRID_COLOR
+        self.occupant = None
+        return occupant
 
     def update_terrain(self):
         if self.type == "wall":
@@ -141,13 +149,17 @@ class GameMap(Entity):
                 self.move_player(block)
                 self.update_map()
             elif block in self.player_adjacent_blocks():
-                print("Can't move: Occupied.")
+                if player.is_enemy(block.occupant):
+                    print("Slain an enemy!")
+                    block.remove_occupant()
+                else:
+                    print("Can't move: Occupied.")
             else:
                 print("Can't move: Too far.")
 
     def move_player(self, block, ignore=False):
         try:
-            self.player_block.occupant = None
+            self.player_block.remove_occupant()
         except AttributeError:
             if not ignore:
                 raise
@@ -165,7 +177,9 @@ class GameMap(Entity):
                     if (x, y) == player_position:
                         self.move_player(self.map_blocks[x][y], ignore=True)
                     elif random.randint(0, 100) > 70:
-                        creature = Creature(factions=[random.choice(['Enemy', 'Neutral'])])
+                        creature = Creature(
+                            factions=[random.choice(["Enemy", "Neutral"])]
+                        )
                         self.map_blocks[x][y].occupant = creature
 
     def update_map(self):
