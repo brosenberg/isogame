@@ -21,7 +21,7 @@ ENEMY_GRID_COLOR = color.rgba(255, 0, 0, 128)
 FRIEND_GRID_COLOR = color.rgba(0, 255, 0, 128)
 NEUTRAL_GRID_COLOR = color.rgba(255, 255, 0, 192)
 
-DEFAULT_CAMERA_POS = (0, -28, -26)
+DEFAULT_CAMERA_POS = (5.5, -36, -36)
 DEFAULT_CAMERA_ROT = (-45, 0, 0)
 
 game_map = None
@@ -241,12 +241,26 @@ def update():
 
 class UI:
     def __init__(self):
-        pass
+        scale = (0.5, 0.9)
+        text_scale = (1/(scale[0]), 1/scale[1])
+        self.background = Entity(
+            parent=camera.ui,
+            model="quad",
+            position=(0.5, 0.0),
+            scale=(0.5, 0.9),
+            color=color.rgba(192, 192, 192, 128)
+        )
+        self.text = Text(
+            origin=(2.25,-16),
+            parent=self.background,
+            text="Foobar",
+            scale=text_scale,
+        )
 
 
 def main():
     global game_map
-    app = Ursina()
+    app = Ursina(position=(0, 0))
     camera.position = DEFAULT_CAMERA_POS
     camera.rotation = DEFAULT_CAMERA_ROT
     game_map = GameMap()
