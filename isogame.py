@@ -19,12 +19,15 @@ KEY_ACTIONS = {
 DEFAULT_GRID_COLOR = color.rgba(255, 255, 255, 128)
 ENEMY_GRID_COLOR = color.rgba(255, 0, 0, 128)
 FRIEND_GRID_COLOR = color.rgba(0, 255, 0, 128)
-NEUTRAL_GRID_COLOR = color.rgba(255, 255, 64, 128)
+NEUTRAL_GRID_COLOR = color.rgba(255, 255, 0, 192)
 
 DEFAULT_CAMERA_POS = (0, -28, -26)
 DEFAULT_CAMERA_ROT = (-45, 0, 0)
 
 game_map = None
+ui = None
+update_interval = 1.2  # How many seconds to wait before for refreshing the map
+update_time = 0.0
 player = Creature(factions=["Player"])
 
 
@@ -201,6 +204,9 @@ class GameMap(Entity):
 
 
 def update():
+    global game_map
+    global update_interval
+    global update_time
     pos_rate = 4
     rot_rate = pos_rate * 6
     keys = {
@@ -215,6 +221,10 @@ def update():
         "z": KEY_ACTIONS["rotate_left"],
         "c": KEY_ACTIONS["rotate_right"],
     }
+    # update_time += time.dt
+    # if update_time >= update_interval:
+    #    game_map.update_map()
+    #    update_time = 0
     for key in keys:
         if held_keys[key]:
             try:
@@ -229,12 +239,18 @@ def update():
                 pass
 
 
+class UI:
+    def __init__(self):
+        pass
+
+
 def main():
     global game_map
     app = Ursina()
     camera.position = DEFAULT_CAMERA_POS
     camera.rotation = DEFAULT_CAMERA_ROT
     game_map = GameMap()
+    ui = UI()
     game_map.update_map()
     app.run()
 
